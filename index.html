@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ICONS 2027 · HALL 2 · Interactive Floor Plan</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+    --ink:#0b1220;
+    --ink-2:#475569;
+    --ink-3:#94a3b8;
+    --line:#e8edf3;
+    --paper:#ffffff;
+    --bg:#eef1f5;
+    --sold:#e0484d;
+    --seller:#7c3aed;
+    --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --shadow-lg:0 24px 60px -12px rgba(11,18,32,.28), 0 8px 20px -8px rgba(11,18,32,.16);
+    --shadow-md:0 10px 30px -8px rgba(11,18,32,.18), 0 3px 10px -4px rgba(11,18,32,.10);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--font);-webkit-font-smoothing:antialiased}
+
+#stage{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:zoom-in}
+#stage.zoomed{cursor:grab}
+#stage.zoomed.dragging{cursor:grabbing}
+#container{position:absolute;top:0;left:0;transform-origin:0 0}
+#container.animate{transition:transform .38s cubic-bezier(.22,1,.36,1)}
+#map-img{display:block;width:100%;height:100%;max-width:none;user-select:none;-webkit-user-drag:none}
+#stage,#container,#map-img,.mesa,.sponsor-zone,.sponsor-logo-box img,.zona{-webkit-user-drag:none;user-drag:none;-webkit-touch-callout:none}
+#stage{user-select:none;-webkit-user-select:none}
+#capa-mesas,#capa-sellers{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#capa-sellers{z-index:40}
+
+/* MESAS */
+.mesa{
+    position:absolute;box-sizing:border-box;
+    border:1px solid rgba(0,0,0,.12);border-radius:2.5px;
+    pointer-events:auto;cursor:pointer;
+    transition:box-shadow .16s ease, filter .16s ease;
+}
+.mesa:hover,.mesa.active{
+    box-shadow:0 0 9px 3px var(--ring, rgba(11,18,32,.35));
+    filter:saturate(1.35) brightness(1.02);
+    z-index:30;
+}
+.mesa.active{z-index:31}
+/* esquinas: las dos mesas van juntas, así que se iluminan juntas */
+.mesa.pair{
+    box-shadow:0 0 0 2px var(--pair,rgba(11,18,32,.65)), 0 0 12px 4px var(--ring,rgba(11,18,32,.35));
+    filter:saturate(1.45) brightness(1.04);
+    z-index:30;
+}
+.mesa.sold{cursor:default}
+/* en la vista completa manda la lupa, no las fichas */
+body.lvl-0 .mesa{pointer-events:none}
+body.no-loupe .mesa{pointer-events:auto}
+
+/* SELLERS */
+.sponsor-zone{position:absolute;pointer-events:auto;transition:transform .18s cubic-bezier(.2,.9,.3,1.2);cursor:pointer}
+.sponsor-zone:hover{transform:scale(1.07);z-index:9000}
+.sponsor-logo-box{width:100%;height:100%;background:#fff;border-radius:7px;box-shadow:0 3px 10px rgba(11,18,32,.18);display:flex;align-items:center;justify-content:center;padding:4px;border:1.5px solid #fff;transition:border-color .18s}
+.sponsor-zone:hover .sponsor-logo-box{border-color:var(--seller)}
+.sponsor-logo-box img{width:100%;height:100%;object-fit:contain}
+.sponsor-logo-box.multi-logo{display:grid;gap:3px;align-items:stretch;justify-items:stretch}
+.sponsor-logo-box.multi-logo img{min-width:0;min-height:0}
+.layout-dual-horizontal{grid-template-columns:repeat(2,minmax(0,1fr))}
+.layout-dual-vertical{grid-template-rows:repeat(2,minmax(0,1fr))}
+.layout-triple-vertical{grid-template-rows:repeat(3,minmax(0,1fr))}
+.layout-quad-vertical{grid-template-rows:repeat(4,minmax(0,1fr))}
+
+/* TOOLTIP */
+.tip{
+    position:fixed;z-index:12000;left:0;top:0;
+    background:var(--paper);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow-lg);
+    opacity:0;transform:translateY(6px) scale(.98);
+    transition:opacity .14s ease, transform .14s ease;
+    pointer-events:none;overflow:hidden;
+}
+.tip.show{opacity:1;transform:translateY(0) scale(1)}
+.tip::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:var(--accent,#94a3b8)}
+
+#tip-mesa{width:288px}
+.t-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 16px 0}
+.t-id{font-size:21px;font-weight:800;letter-spacing:-.03em;color:var(--ink);line-height:1;font-variant-numeric:tabular-nums}
+.t-pill{
+    font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+    padding:5px 9px;border-radius:999px;white-space:nowrap;flex:none;
+    background:var(--accent-soft,#f1f5f9);color:var(--accent-ink,#334155);
+}
+.t-meta{display:flex;margin:13px 16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.t-cell{flex:1;padding:9px 0;text-align:center;border-right:1px solid var(--line)}
+.t-cell:last-child{border-right:none}
+.t-k{display:block;font-size:8.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.t-v{display:block;font-size:12.5px;font-weight:700;color:var(--ink);margin-top:3px;font-variant-numeric:tabular-nums;line-height:1.25;padding:0 4px}
+.t-foot{padding:13px 16px 15px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.t-old{font-size:13px;font-weight:600;color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:1.5px}
+.t-new{font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.t-eb{font-size:13px;font-weight:800;color:#e11d48;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.t-sold{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--sold)}
+.t-sold::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--sold)}
+.t-corner{
+    margin:12px 16px 0;padding:8px 10px;border-radius:7px;
+    background:var(--accent-soft,#f1f5f9);color:var(--accent-ink,#334155);
+    font-size:11.5px;font-weight:600;line-height:1.45;
+}
+.t-corner b{font-weight:800}
+.t-units{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.t-seller{padding:12px 16px 0;font-size:12px;font-weight:600;color:var(--ink-2)}
+.t-seller b{color:var(--ink);font-weight:800}
+
+#tip-seller{width:auto;min-width:190px;max-width:260px;pointer-events:auto}
+#tip-seller::before{background:var(--seller)}
+.s-name{font-size:16px;font-weight:800;color:var(--ink);letter-spacing:-.02em;padding:16px 17px 0}
+.s-tag{font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);padding:5px 17px 0}
+.s-links{display:flex;flex-direction:column;gap:7px;padding:13px 15px 15px}
+.s-btn{display:flex;align-items:center;gap:9px;padding:9px 13px;border-radius:9px;text-decoration:none;font-size:12.5px;font-weight:700;transition:all .16s;border:1px solid var(--line);color:var(--ink-2);background:#fafbfc}
+.s-btn:hover{background:#fff;border-color:#cfd8e3;transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.s-btn svg,.s-btn img{width:16px;height:16px;object-fit:contain;flex:none}
+.s-btn.ig:hover{border-color:#f0b3d0;color:#c02a63}
+
+/* LUPA (solo en la vista completa) */
+#loupe{
+    position:fixed;left:0;top:0;width:280px;height:280px;border-radius:50%;
+    border:3px solid #fff;background:var(--bg);
+    box-shadow:0 20px 45px -12px rgba(11,18,32,.5), 0 0 0 1px rgba(11,18,32,.08);
+    overflow:hidden;pointer-events:none;z-index:11500;
+    opacity:0;transform:scale(.82);
+    transition:opacity .2s ease, transform .26s cubic-bezier(.2,.9,.3,1.3);
+}
+#loupe.on{opacity:1;transform:scale(1)}
+#loupe::after{
+    content:'';position:absolute;inset:0;border-radius:50%;pointer-events:none;
+    box-shadow:inset 0 0 26px rgba(11,18,32,.13);
+}
+#loupe-inner{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:none}
+#loupe-inner .tip{display:none!important}
+@media(hover:none){#loupe{display:none!important}}
+
+/* ZOOM (4 niveles) */
+#zoom{
+    position:fixed;bottom:24px;right:24px;z-index:11000;
+    display:flex;gap:4px;padding:5px;
+    background:rgba(255,255,255,.95);backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.7);border-radius:999px;box-shadow:var(--shadow-md);
+}
+.zbtn{
+    width:42px;height:42px;border-radius:50%;border:none;background:transparent;
+    color:var(--ink-3);font-family:var(--font);font-size:13px;font-weight:800;
+    cursor:pointer;transition:background .15s,color .15s;
+    display:flex;align-items:center;justify-content:center;
+}
+.zbtn:hover{background:#eef2f6;color:var(--ink)}
+.zbtn.on{background:var(--ink);color:#fff}
+
+#back{
+    position:fixed;bottom:24px;right:238px;z-index:11000;
+    display:flex;align-items:center;gap:7px;
+    padding:12px 20px;border:none;border-radius:999px;cursor:pointer;
+    background:rgba(255,255,255,.95);backdrop-filter:blur(10px);
+    box-shadow:var(--shadow-md);font-family:var(--font);
+    font-size:12px;font-weight:800;color:var(--ink);letter-spacing:.04em;
+    opacity:0;pointer-events:none;transform:translateX(12px);
+    transition:opacity .25s, transform .25s;
+}
+#back.on{opacity:1;pointer-events:auto;transform:translateX(0)}
+#back:hover{color:#047857}
+
+#loader{position:fixed;inset:0;z-index:30000;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;transition:opacity .4s;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+#loader.gone{opacity:0;pointer-events:none;visibility:hidden;transition:opacity .4s, visibility 0s .4s}
+.spin{width:26px;height:26px;border:2.5px solid #dde4ec;border-top-color:var(--ink);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+@media(max-width:768px){
+    #zoom{bottom:16px;right:50%;transform:translateX(50%);padding:4px;gap:2px}
+    .zbtn{width:46px;height:46px;font-size:13px}
+    #back{bottom:76px;right:50%;transform:translateX(50%);padding:10px 18px}
+    #back.on{transform:translateX(50%)}
+    #tip-mesa{width:min(300px, calc(100vw - 28px))}
+    #tip-seller{max-width:calc(100vw - 28px)}
+}
+</style>
+</head>
+<body>
+
+<div id="loader"><div class="spin"></div><span>Loading floor plan</span></div>
+
+<div id="stage">
+    <div id="container">
+        <img draggable="false" id="map-img" alt="Hall 1 Floor Plan">
+        <div id="capa-mesas"></div>
+        <div id="capa-sellers"></div>
+    </div>
+</div>
+
+<button id="back">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    BACK
+</button>
+
+<div id="zoom">
+    <button class="zbtn on" data-lvl="0">×1</button>
+    <button class="zbtn" data-lvl="1">×2</button>
+    <button class="zbtn" data-lvl="2">×3</button>
+    <button class="zbtn" data-lvl="3">×4</button>
+</div>
+
+<div id="loupe"><div id="loupe-inner"></div></div>
+
+<div class="tip" id="tip-mesa"></div>
+<div class="tip" id="tip-seller"></div>
+
+<script src="config.js"></script>
+<script>
+window.addEventListener('dragstart', e => e.preventDefault());
+const C = window.ICONS_CONFIG;
+const dict = new Map();
+
+const stage     = document.getElementById('stage');
+const container = document.getElementById('container');
+const mapImg    = document.getElementById('map-img');
+const capaMesas = document.getElementById('capa-mesas');
+const capaSell  = document.getElementById('capa-sellers');
+const tipMesa   = document.getElementById('tip-mesa');
+const tipSeller = document.getElementById('tip-seller');
+const backBtn   = document.getElementById('back');
+
+mapImg.src = C.mapImage;
+const isTouch = window.matchMedia('(hover: none)').matches;
+
+/* ZOOM: 4 NIVELES */
+const LEVELS_DESKTOP = [1, 2.2, 4, 6];
+const LEVELS_MOBILE  = [1, 2.8, 5, 8];
+const MAX_RASTER = 15000;   // px de dispositivo que el navegador rasteriza sin fallar
+let LEVELS = LEVELS_DESKTOP;
+
+let level = 0, fitScale = 1, tx = 0, ty = 0;
+let baked = 0;                 // escala ya aplicada al layout del contenedor
+let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
+
+function scale(){ return fitScale * LEVELS[level]; }
+
+/* escala horneada en el layout: scale() sobre un PNG de 7500 px supera
+   el limite de rasterizado del navegador y el plano sale en gris */
+function bake(){
+    const s = scale();
+    container.style.width  = (mapImg.naturalWidth  * s) + 'px';
+    container.style.height = (mapImg.naturalHeight * s) + 'px';
+    baked = s;
+    container.classList.remove('animate');
+    container.style.transform = `translate(${tx}px,${ty}px)`;
+}
+let bakeT = null;
+function bakeSoon(delay){
+    clearTimeout(bakeT);
+    bakeT = setTimeout(bake, delay);
+}
+function setTransform(animate){
+    const k = baked ? scale() / baked : 1;
+    container.classList.toggle('animate', !!animate);
+    container.style.transform = `translate(${tx}px,${ty}px) scale(${k})`;
+}
+function canPan(){
+    return (mapImg.naturalWidth  * scale() > window.innerWidth  + 1)
+        || (mapImg.naturalHeight * scale() > window.innerHeight + 1);
+}
+function syncUI(){
+    document.body.className = 'lvl-' + level + (LOUPE.enabled ? '' : ' no-loupe');
+    stage.classList.toggle('zoomed', canPan());
+    backBtn.classList.toggle('on', level > 0);
+    document.querySelectorAll('.zbtn').forEach(b => b.classList.toggle('on', +b.dataset.lvl === level));
+}
+function applyTransform(animate){
+    setTransform(animate);
+    syncUI();
+    if (typeof hideLoupe === 'function') hideLoupe();
+    bakeSoon(animate ? 420 : 0);
+}
+
+function clampPan(){
+    const w = mapImg.naturalWidth * scale();
+    const h = mapImg.naturalHeight * scale();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    if (w <= vw) tx = (vw - w) / 2; else tx = Math.min(0, Math.max(vw - w, tx));
+    if (h <= vh) ty = (vh - h) / 2; else ty = Math.min(0, Math.max(vh - h, ty));
+}
+
+function fit(animate){
+    const iw = mapImg.naturalWidth || 7499, ih = mapImg.naturalHeight || 5675;
+    const portrait = window.innerHeight > window.innerWidth * 1.15;
+    fitScale = portrait
+        ? (window.innerWidth / iw) * 0.995
+        : Math.min(window.innerWidth / iw, window.innerHeight / ih) * 0.98;
+    const dpr = window.devicePixelRatio || 1;
+    const base = window.innerWidth < 768 ? LEVELS_MOBILE : LEVELS_DESKTOP;
+    const cap = MAX_RASTER / (iw * fitScale * dpr);
+    LEVELS = base.map(l => Math.min(l, Math.max(base[1], cap)));
+    level = 0;
+    tx = (window.innerWidth  - iw * fitScale) / 2;
+    ty = (window.innerHeight - ih * fitScale) / 2;
+    clampPan();
+    if (animate && baked){ applyTransform(true); }
+    else { clearTimeout(bakeT); bake(); syncUI(); }
+}
+
+function setLevel(n, cx, cy){
+    n = Math.max(0, Math.min(LEVELS.length - 1, n));
+    if (n === level) return;
+    hideTips();
+    if (n === 0){ fit(true); return; }
+    if (cx === undefined && canPan()){ cx = window.innerWidth / 2; cy = window.innerHeight / 2; }
+    if (cx === undefined){ cx = window.innerWidth / 2; cy = window.innerHeight / 2; }
+    const before = scale();
+    const px = (cx - tx) / before, py = (cy - ty) / before;
+    level = n;
+    const after = scale();
+    tx = cx - px * after;
+    ty = cy - py * after;
+    clampPan();
+    applyTransform(true);
+}
+
+document.querySelectorAll('.zbtn').forEach(b => {
+    b.addEventListener('click', e => { e.stopPropagation(); setLevel(+b.dataset.lvl); });
+});
+backBtn.addEventListener('click', e => { e.stopPropagation(); setLevel(0); });
+
+stage.addEventListener('click', e => {
+    if (moved || e.target.closest('a') || e.target.closest('#tip-seller')) return;
+    const mesa = e.target.closest('.mesa');
+    if (mesa && isTouch){ showMesaTip(mesa); return; }
+    if (e.target.closest('.sponsor-zone') && isTouch) return;
+    setLevel(level + 1 >= LEVELS.length ? 0 : level + 1, e.clientX, e.clientY);
+});
+
+/* Rueda del ratón: salta de nivel */
+let wheelLock = 0;
+stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    const now = Date.now();
+    if (now - wheelLock < 320) return;
+    wheelLock = now;
+    setLevel(level + (e.deltaY > 0 ? -1 : 1), e.clientX, e.clientY);
+}, { passive:false });
+
+/* Arrastre cuando hay zoom */
+stage.addEventListener('pointerdown', e => {
+    if (e.target.closest('#tip-seller')) return;
+    if (e.pointerType === 'mouse') e.preventDefault();
+    moved = false;
+    if (!canPan()) return;
+    dragging = true;
+    sx = e.clientX; sy = e.clientY; ox = tx; oy = ty;
+    stage.classList.add('dragging');
+    container.classList.remove('animate');
+    try { stage.setPointerCapture(e.pointerId); } catch(_){}
+});
+stage.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) + Math.abs(dy) > 5){ moved = true; hideTips(); }
+    tx = ox + dx; ty = oy + dy;
+    clampPan();
+    setTransform(false);
+});
+function endDrag(e){
+    if (!dragging) return;
+    dragging = false;
+    stage.classList.remove('dragging');
+    try { stage.releasePointerCapture(e.pointerId); } catch(_){}
+    setTimeout(() => { moved = false; }, 60);
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+
+window.addEventListener('keydown', e => {
+    if (e.key === 'Escape'){ hideTips(); setLevel(0); }
+    if (e.key === '+' || e.key === '=') setLevel(level + 1);
+    if (e.key === '-' || e.key === '_') setLevel(level - 1);
+    if (e.key >= '1' && e.key <= '4') setLevel(+e.key - 1);
+});
+let lastW = window.innerWidth;
+window.addEventListener('resize', () => {
+    if (window.innerWidth !== lastW){ lastW = window.innerWidth; fit(false); return; }
+    clampPan(); setTransform(false);
+});
+
+/* TOOLTIPS */
+let tipTimer = null;
+function hideTips(){
+    tipMesa.classList.remove('show');
+    tipSeller.classList.remove('show');
+    document.querySelectorAll('.mesa.active').forEach(m => m.classList.remove('active'));
+    clearPairs();
+}
+function place(tip, rect){
+    tip.style.visibility = 'hidden';
+    tip.classList.add('show');
+    const w = tip.offsetWidth, h = tip.offsetHeight, gap = 12;
+    let left = rect.left + rect.width/2 - w/2;
+    let top  = rect.top - h - gap;
+    if (top < 12) top = rect.bottom + gap;
+    if (top + h > window.innerHeight - 12) top = Math.max(12, window.innerHeight - h - 12);
+    left = Math.min(window.innerWidth - w - 12, Math.max(12, left));
+    tip.style.left = left + 'px';
+    tip.style.top  = top + 'px';
+    tip.style.visibility = 'visible';
+}
+
+/* ESQUINAS · resaltar las dos mesas a la vez (también en la lupa) */
+function markPair(m, on){
+    const id = m.dataset.info || '';
+    const grupo = C.corner.group(id);
+    if (!grupo) return;
+    grupo.forEach(x => document.querySelectorAll('.mesa[data-info="' + x + '"]')
+        .forEach(el => el.classList.toggle('pair', on)));
+}
+function clearPairs(){
+    document.querySelectorAll('.mesa.pair').forEach(el => el.classList.remove('pair'));
+}
+
+function showMesaTip(m){
+    const info  = m.dataset.info || '';
+    const type  = m.dataset.type || 'collector';
+    const p     = C.parseId(info);
+    const conf  = C.types[type] || C.types.collector;
+    const hex   = m._hex;
+    const seller= m.dataset.seller || '';
+
+    /* esquina (2 mesas) o cuarto de isla (3 mesas): se contratan juntas, el precio es la suma
+       y basta con que una esté vendida para que no se pueda coger el grupo */
+    const grupo = C.corner.group(info);
+    const bloque= C.corner.isBlock(info);
+    const n     = grupo ? grupo.length : 1;
+    const price = C.priceFor(type, n);
+    const sold  = grupo ? grupo.some(x => { const el = dict.get(x); return el && el.classList.contains('sold'); })
+                        : m.classList.contains('sold');
+
+    let label = p.zone + p.num, celda = p.num;
+    if (grupo){
+        const nums = grupo.map(x => C.tableNumber(x));
+        label = nums.map(x => p.zone + x).join(' + ');
+        celda = nums.join(' + ');
+    }
+
+    tipMesa.style.setProperty('--accent', sold ? C.soldColor : hex);
+    tipMesa.style.setProperty('--accent-soft', C.rgba(sold ? C.soldColor : hex, .13));
+    tipMesa.style.setProperty('--accent-ink', C.shade(sold ? C.soldColor : hex, .42));
+
+    tipMesa.innerHTML = `
+        <div class="t-head">
+            <div class="t-id">${label}</div>
+            <span class="t-pill">${sold ? C.soldLabel : conf.label.replace(' Table','')}</span>
+        </div>
+        <div class="t-meta">
+            <div class="t-cell"><span class="t-k">Category</span><span class="t-v">${p.catLabel}</span></div>
+            <div class="t-cell"><span class="t-k">Zone</span><span class="t-v">${p.zone}</span></div>
+            <div class="t-cell"><span class="t-k">${grupo ? 'Tables' : 'Table'}</span><span class="t-v">${celda}</span></div>
+        </div>
+        ${grupo ? `<div class="t-corner">${bloque ? (C.blocks.label || 'Quarter island') : 'Corner position'} &middot; these <b>${n} tables</b> are booked together and cannot be split.</div>` : ''}
+        ${seller ? `<div class="t-seller">Exhibitor · <b>${seller}</b></div>` : ''}
+        <div class="t-foot">
+            ${sold
+                ? `<span class="t-sold">${C.soldLabel}</span>`
+                : (price.early
+                    ? `<span class="t-old">${price.base}</span><span class="t-new">${price.early}</span><span class="t-eb">−${Math.round(C.earlyBird.discount*100)}%</span>`
+                    : `<span class="t-new">${price.base}</span>`)}
+            ${grupo && !sold ? `<span class="t-units">${n} tables</span>` : ''}
+        </div>`;
+    document.querySelectorAll('.mesa.active').forEach(x => x.classList.remove('active'));
+    clearPairs();
+    markPair(m, true);
+    if (isTouch) m.classList.add('active');
+    place(tipMesa, m.getBoundingClientRect());
+}
+
+/* MESAS */
+function paint(m){
+    const sold = m.classList.contains('sold');
+    const hex = sold ? C.soldColor : m._hex;
+    m.style.backgroundColor = C.rgba(hex, sold ? .46 : .34);
+    m.style.borderColor = C.rgba(C.shade(hex,.3), .75);
+    m.style.setProperty('--ring', C.rgba(hex, .5));
+    m.style.setProperty('--pair', C.rgba(C.shade(hex,.38), .85));
+}
+async function cargarMesas(){
+    const resp = await fetch('mesas.html?v=' + Date.now(), { cache:'no-store' });
+    capaMesas.innerHTML = await resp.text();
+    C.corner.build(capaMesas.querySelectorAll('.mesa'));
+    capaMesas.querySelectorAll('.mesa').forEach(m => {
+        const info = m.dataset.info || '';
+        dict.set(info, m);
+        const type = m.dataset.type || (/COMMERCIAL/i.test(info) ? 'commercial' : 'collector');
+        m.dataset.type = type;
+        m._hex = C.colorFor(type, m.dataset.tone || 'base', m.dataset.color || '');
+        paint(m);
+        if (!isTouch){
+            m.addEventListener('pointerenter', () => { if (!dragging){ markPair(m,true); showMesaTip(m); } });
+            m.addEventListener('pointerleave', () => { markPair(m,false); tipMesa.classList.remove('show'); });
+        }
+    });
+}
+
+/* SELLERS */
+const IG_ICON = 'https://cdn.shopify.com/s/files/1/0772/3633/9020/files/Instagram_icon_a7c6e898-1b4b-42cf-a525-04f05aea43a2.png?v=1778103647';
+const WEB_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 4 9 15 15 0 0 1-4 9 15 15 0 0 1-4-9 15 15 0 0 1 4-9z"/></svg>';
+
+function showSellerTip(sp){
+    const name = sp.dataset.name || '', ig = sp.dataset.ig || '', web = sp.dataset.web || '';
+    tipSeller.innerHTML = `
+        <div class="s-tag">Exhibitor</div>
+        <div class="s-name">${name}</div>
+        <div class="s-links">
+            ${ig  ? `<a class="s-btn ig" href="${ig}" target="_blank" rel="noopener"><img draggable="false" src="${IG_ICON}" alt=""> Instagram</a>` : ''}
+            ${web ? `<a class="s-btn" href="${web}" target="_blank" rel="noopener">${WEB_ICON} Visit website</a>` : ''}
+        </div>`;
+    place(tipSeller, sp.getBoundingClientRect());
+}
+async function cargarSellers(){
+    const resp = await fetch('seller.html?v=' + Date.now(), { cache:'no-store' });
+    if (!resp.ok) return;
+    capaSell.innerHTML = await resp.text();
+    capaSell.querySelectorAll('.sponsor-zone').forEach(sp => {
+        const name = sp.dataset.name || '', logo = sp.dataset.logo || '';
+        const legacy = sp.dataset.dual === 'true';
+        const req = sp.dataset.logoLayout || (legacy ? 'dual-vertical' : 'single');
+        const counts = {'single':1,'dual-horizontal':2,'dual-vertical':2,'triple-vertical':3,'quad-vertical':4};
+        const layout = counts[req] ? req : 'single';
+        const cls = layout === 'single' ? 'sponsor-logo-box' : `sponsor-logo-box multi-logo layout-${layout}`;
+        sp.innerHTML = `<div class="${cls}">${
+            logo ? Array.from({length:counts[layout]}, () => `<img draggable="false" src="${logo}" alt="${name}">`).join('')
+                 : `<span style="font-size:9px;font-weight:800;color:#334155">${name}</span>`}</div>`;
+        if (isTouch){
+            sp.addEventListener('click', e => { e.stopPropagation(); showSellerTip(sp); });
+        } else {
+            sp.addEventListener('pointerenter', () => { clearTimeout(tipTimer); if (!dragging) showSellerTip(sp); });
+            sp.addEventListener('pointerleave', () => { tipTimer = setTimeout(() => tipSeller.classList.remove('show'), 260); });
+        }
+    });
+    tipSeller.addEventListener('pointerenter', () => clearTimeout(tipTimer));
+    tipSeller.addEventListener('pointerleave', () => { if (!isTouch) tipSeller.classList.remove('show'); });
+}
+
+const LOUPE_ON = () => level === 0;
+/* LUPA */
+const loupe = document.getElementById('loupe');
+const loupeInner = document.getElementById('loupe-inner');
+const LOUPE = Object.assign({ enabled:true, size:280, zoom:3.6, border:3 }, C.loupe || {});
+const LOUPE_C = (LOUPE.size - LOUPE.border * 2) / 2;   // centro de la caja interior
+loupe.style.width  = LOUPE.size + 'px';
+loupe.style.height = LOUPE.size + 'px';
+loupe.style.borderWidth = LOUPE.border + 'px';
+if (!LOUPE.enabled) loupe.style.display = 'none';
+let loupeReady = false;
+
+function buildLoupe(){
+    loupeInner.innerHTML = container.innerHTML;
+    loupeInner.querySelectorAll('.tip').forEach(n => n.remove());
+    loupeInner.style.width  = mapImg.naturalWidth + 'px';
+    loupeInner.style.height = mapImg.naturalHeight + 'px';
+    loupeReady = true;
+}
+function hideLoupe(){ loupe.classList.remove('on'); }
+function moveLoupe(e){
+    if (!LOUPE.enabled || isTouch || e.pointerType === 'touch' || dragging || !LOUPE_ON()) return hideLoupe();
+    if (e.target.closest('.sponsor-zone') || e.target.closest('#tip-seller')) return hideLoupe();
+    const r = container.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return hideLoupe();
+    if (!loupeReady) buildLoupe();
+    const z = fitScale * LOUPE.zoom;
+    const px = (e.clientX - r.left) / r.width  * mapImg.naturalWidth;
+    const py = (e.clientY - r.top)  / r.height * mapImg.naturalHeight;
+    loupeInner.style.transform = `scale(${z})`;
+    loupeInner.style.left = (LOUPE_C - px * z) + 'px';
+    loupeInner.style.top  = (LOUPE_C - py * z) + 'px';
+    loupe.style.left = (e.clientX - LOUPE.size/2) + 'px';
+    loupe.style.top  = (e.clientY - LOUPE.size/2) + 'px';
+    loupe.classList.add('on');
+}
+stage.addEventListener('pointermove', moveLoupe);
+stage.addEventListener('pointerleave', hideLoupe);
+stage.addEventListener('pointerdown', hideLoupe);
+
+/* HOJA DE CÁLCULO */
+function splitCSV(line){
+    return line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g,'').replace(/""/g,'"').trim());
+}
+async function sincronizar(){
+    if (!C.csvUrl) return;
+    try{
+        const base = String(C.csvUrl).split('#')[0];
+        const url = base + (base.includes('?') ? '&' : '?') + 'cache_ignore=' + Date.now();
+        const r = await fetch(url, { cache:'no-cache', mode:'cors' });
+        const raw = await r.text();
+        if (raw.trim().startsWith('<')){
+            console.warn('[ICONS] csvUrl no devuelve CSV sino HTML. Es la URL de /edit, no la publicada.\n' +
+                         'Usa Archivo > Compartir > Publicar en la web (hoja concreta + CSV), o bien\n' +
+                         'https://docs.google.com/spreadsheets/d/ID/gviz/tq?tqx=out:csv&gid=NNN');
+            return;
+        }
+        const lines = raw.split(/\r?\n/);
+        const seen = new Set();
+        lines.forEach((row,i) => {
+            if (i === 0 || !row.trim()) return;
+            const col = splitCSV(row);
+            if (col.length < 3) return;
+            const m = dict.get(col[2] || '');
+            if (!m) return;
+            seen.add(col[2]);
+            const estado = (col[1] || '').toUpperCase();
+            m.classList.toggle('sold', estado.includes('VENDIDA') || estado.includes('SOLD'));
+            if (col[3]) m.dataset.seller = col[3];
+            paint(m);
+        });
+        dict.forEach((m,id) => { if (!seen.has(id) && m.classList.contains('sold')){ m.classList.remove('sold'); paint(m); } });
+        /* cuartos de isla: si una mesa del bloque está vendida, se pinta vendido el bloque entero */
+        ((C.blocks && C.blocks.list) || []).forEach(bl => {
+            const els = bl.map(x => dict.get(x)).filter(Boolean);
+            if (els.some(el => el.classList.contains('sold')))
+                els.forEach(el => { if (!el.classList.contains('sold')){ el.classList.add('sold'); paint(el); } });
+        });
+    }catch(err){ console.warn('CSV sync:', err.message); }
+    loupeReady = false;
+}
+
+/* ARRANQUE */
+async function boot(){
+    fit(false);
+    try { await cargarMesas(); } catch(e){ console.error('mesas.html:', e); }
+    try { await cargarSellers(); } catch(e){ console.warn('seller.html:', e); }
+    loupeReady = false;
+    sincronizar();
+    setInterval(sincronizar, C.csvRefreshMs);
+    const ld = document.getElementById('loader');
+    ld.classList.add('gone');
+    setTimeout(() => ld.remove(), 500);
+}
+if (mapImg.complete && mapImg.naturalWidth) boot();
+else { mapImg.onload = boot; mapImg.onerror = () => { document.getElementById('loader').innerHTML = '<span>No se encuentra ' + C.mapImage + '</span>'; }; }
+</script>
+</body>
+</html>
